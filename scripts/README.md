@@ -1,6 +1,6 @@
 GitHub Portfolio: The Local System Health Monitor
 
-Author: 0x0_Tempus
+Author: aextecki
 
 The Project: Write a lightweight diagnostic tool that evaluates system performance metrics and creates clean summaries.
 
