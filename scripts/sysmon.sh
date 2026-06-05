@@ -1,13 +1,6 @@
 #!/bin/bash
-
-# 1. Check if SSH daemon is active
-#sudo systemctl status ssh
-
-# 2. Monitor socket allocations continuously in real-time
-#sudo ss -tulpn
-
-# 3. Stream live logs from the system service directly to your screen
-#sudo journalctl -u ssh -f --no-pager
+# Usage: chmod a+x /path/sysmon.sh
+#        ./sysmon.sh 
 
 # --- CONFIGURATION ---
 MEM_THRESHOLD_PERCENT=80
