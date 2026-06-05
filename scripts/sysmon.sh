@@ -4,7 +4,7 @@
 #        ./sysmon.sh 
 
 # --- CONFIGURATION ---
-MEM_THRESHOLD_PERCENT=40
+MEM_THRESHOLD_PERCENT=80
 WEB_SERVICES="nginx apache2 lighttpd"
 
 echo "=== SYSTEM MONITORING REPORT | $(date) ==="
@@ -75,7 +75,7 @@ echo "[CPU STATUS]"
 echo "Current CPU Idle State: $CPU_IDLE%"
 
 # Compare floating point numbers using bc
-if (( $(echo "$CPU_IDLE < 100.0" | bc -l) )); then
+if (( $(echo "$CPU_IDLE < 10.0" | bc -l) )); then
     echo "⚠️ WARNING: CPU idle state is dangerously low! High processing load."
     
     # --- DATADOG INJECTION PLACE 2 ---
