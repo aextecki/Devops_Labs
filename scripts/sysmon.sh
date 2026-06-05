@@ -1,12 +1,42 @@
 #!/bin/bash
-# Usage: chmod a+x /path/sysmon.sh
+# Usage: export DD_API_KEY="your_api_key_here"
+#        chmod a+x /path/sysmon.sh
 #        ./sysmon.sh 
 
 # --- CONFIGURATION ---
-MEM_THRESHOLD_PERCENT=80
+MEM_THRESHOLD_PERCENT=40
+WEB_SERVICES="nginx apache2 lighttpd"
 
 echo "=== SYSTEM MONITORING REPORT | $(date) ==="
 echo ""
+
+# =========================================================================
+# DATADOG TELEMETRY INJECTION ENGINE
+# =========================================================================
+# This reusable function handles sending structured events straight to your cloud app via API
+send_datadog_event() {
+    local TITLE="$1"
+    local TEXT="$2"
+    local ALERT_TYPE="$3" # can be: error, warning, info, success
+
+    # Only attempt to ship logs if you have configured an API key
+    if [ -n "$DD_API_KEY" ]; then
+        curl -X POST "https://api.datadoghq.com/api/v1/events" \
+        -s -o /dev/null \
+        -H "Content-Type: application/json" \
+        -H "DD-API-KEY: ${DD_API_KEY}" \
+        -d @- <<EOF
+{
+  "title": "${TITLE}",
+  "text": "${TEXT}",
+  "priority": "normal",
+  "tags": ["environment:devops-lab", "module:1", "host:debian13", "script:sysmon"],
+  "alert_type": "${ALERT_TYPE}"
+}
+EOF
+    fi
+}
+# =========================================================================
 
 # 0. CHECKING SYSTEM WEB SERVICES
 # Get all the services in the system
@@ -24,6 +54,9 @@ for SERVICE in $WEB_SERVICES; do
         else
             echo "❌ $SERVICE: NOT RUNNING! (Attempting to check status...)"
             systemctl status "$SERVICE" | grep "Active:" | awk '{print "   -> Status "$0}'
+            
+            # --- DATADOG INJECTION PLACE 1 ---
+            send_datadog_event "Service Failure: $SERVICE" "The web service tracking agent detected that $SERVICE is stopped on debian13." "error"
         fi
     fi
 done
@@ -42,8 +75,11 @@ echo "[CPU STATUS]"
 echo "Current CPU Idle State: $CPU_IDLE%"
 
 # Compare floating point numbers using bc
-if (( $(echo "$CPU_IDLE < 10.0" | bc -l) )); then
+if (( $(echo "$CPU_IDLE < 100.0" | bc -l) )); then
     echo "⚠️ WARNING: CPU idle state is dangerously low! High processing load."
+    
+    # --- DATADOG INJECTION PLACE 2 ---
+    send_datadog_event "Resource Alert: Low CPU Idle" "CPU idle headroom is dangerously low at ${CPU_IDLE}%." "warning"
 else
     echo "✅ OK: CPU idle headroom is sufficient."
 fi
@@ -60,6 +96,9 @@ echo "Memory Usage: $MEM_USAGE_PERCENT% ($((MEM_USED / 1024))MB used of $((MEM_T
 
 if [ "$MEM_USAGE_PERCENT" -gt "$MEM_THRESHOLD_PERCENT" ]; then
     echo "⚠️ WARNING: Active memory usage has breached the $MEM_THRESHOLD_PERCENT% threshold!"
+    
+    # --- DATADOG INJECTION PLACE 3 ---
+    send_datadog_event "Resource Alert: High Memory Usage" "Active memory usage has breached safe operational baselines. Currently at ${MEM_USAGE_PERCENT}%." "warning"
 else
     echo "✅ OK: Memory usage is within safe parameters."
 fi
@@ -80,6 +119,9 @@ echo "Active HTTP/S (Port 80/443) connections: $HTTP_CONN"
 # Check if services are listening
 if ! ss -ltn | grep -q :22; then
     echo "⚠️ ALERT: SSH service is NOT listening on port 22!"
+    
+    # --- DATADOG INJECTION PLACE 4 ---
+    send_datadog_event "Security Alert: SSH Port Closed" "Telemetric probe detected that port 22 is no longer accepting connection states." "error"
 fi
 
 if ! ss -ltn | grep -E -q ':(80|443)'; then
@@ -114,8 +156,12 @@ if [ "$BLOCKED_COUNT" -gt 0 ]; then
         }
         print " -> Time: "$1" "$2" "$3" | Source IP: "src" | Port: "dpt
     }'
+    
+    # --- DATADOG INJECTION PLACE 5 ---
+    if [ "$BLOCKED_COUNT" -gt 50 ]; then
+        send_datadog_event "Security Warning: UFW Network Blocks Spike" "Firewall state evaluation detected ${BLOCKED_COUNT} block events within the last hour window." "warning"
+    fi
 else
     echo "✅ OK: No recent firewall blocks detected."
 fi
 echo "========================================"
-
